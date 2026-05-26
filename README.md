@@ -25,7 +25,7 @@ The goal is to show how container choice affects runtime for operations such as 
   - constructors and assignment operators
   - accessor and modifier methods
   - stream insertion/extraction operators
-  - comparison operators using C++20’s three-way comparison support
+  - comparison operators using C++20's three-way comparison support
 - Benchmarks container operations across multiple STL data structures
 - Measures elapsed time for each operation as the dataset grows or shrinks
 - Exports results as CSV for graphing or spreadsheet analysis
@@ -45,13 +45,17 @@ This project goes beyond a basic CRUD-style library app by combining object-orie
 
 ```text
 Library-Search-Engine-Design-main/
-├── main.cpp          # Benchmark driver and timing collection
-├── Book.hpp          # Book class declaration
-├── Book.cpp          # Book class implementation and CSV parsing/printing
-├── Operations.hpp    # Insert, remove, and search operations for each container
-├── Timer.hpp         # Generic timer utility used for benchmarking
-├── output.csv        # Example benchmark output
-└── README.md
+|-- CMakeLists.txt       # Cross-platform build configuration
+|-- README.md            # Project documentation
+|-- include/             # Public project headers
+|   |-- Book.hpp
+|   |-- Operations.hpp
+|   `-- Timer.hpp
+|-- src/                 # Application source files
+|   |-- Book.cpp
+|   `-- main.cpp
+`-- data/
+    `-- output.csv       # Example benchmark output
 ```
 
 ## How it works
@@ -85,7 +89,14 @@ Each line should contain:
 Compile with a C++20-compatible compiler such as `g++`:
 
 ```bash
-g++ -std=c++20 -O2 -Wall -Wextra -pedantic main.cpp Book.cpp -o library_search_engine
+g++ -std=c++20 -O2 -Wall -Wextra -pedantic -Iinclude src/main.cpp src/Book.cpp -o library_search_engine
+```
+
+Or build with CMake:
+
+```bash
+cmake -S . -B build
+cmake --build build
 ```
 
 ## Run Instructions
@@ -100,7 +111,7 @@ Notes:
 
 - Benchmark progress messages are written to the console through `std::clog`
 - Timing results are written to standard output in CSV format
-- The included `output.csv` is an example of generated benchmark results
+- The included `data/output.csv` is an example of generated benchmark results
 
 ## Example Output Columns
 

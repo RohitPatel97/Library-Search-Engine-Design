@@ -4,13 +4,14 @@
 #include <cstddef>          // size_t
 #include <forward_list>     // Singly linked list
 #include <iostream>         // standard i/o streams cout, clog, cin
-#include <iterator>         // next(), istream_iterator
+#include <iterator>         // istream_iterator
 #include <list>             // doubly linked list
 #include <map>              // Binary search tree associative container with no duplicates
 #include <random>           // random_device, default_random_engine
 #include <sstream>          // ostringstream
 #include <string>           // Unbounded strings
 #include <unordered_map>    // Hash Table associative container with no duplicates
+#include <utility>          // pair
 #include <vector>           // Unbounded vector
 
 #include "Book.hpp"
@@ -72,15 +73,15 @@ namespace    // unnamed, anonymous namespace
   template<class Operation>
   void measure( const std::string & structureName,                            // free text name of data structure being measured
                 const std::string & operationDescription,                     // free text name of the operation of the data structure being measured
-                Operation           operation,                                // operation to be measured, expressed as a Functiod
+                Operation           operation,                                // operation to be measured, expressed as a Functor
                 Direction::value    direction = Direction::Grow );            // indicates to record measurements as the container grows (i.e. inserts) or shrinks (i.e. removes)
 
 
   template<class Operation, class Preamble>
   void measure( const std::string & structureName,                            // free text name of data structure being measured
                 const std::string & operationDescription,                     // free text name of the operation of the data structure being measured
-                Preamble            preamble,                                 // setup work to occur before operation, expressed as a Functiod
-                Operation           operation,                                // operation to be measured, expressed as a Functiod
+                Preamble            preamble,                                 // setup work to occur before operation, expressed as a Functor
+                Operation           operation,                                // operation to be measured, expressed as a Functor
                 Direction::value    direction = Direction::Grow );            // indicates to record measurements as the container grows (i.e. inserts) or shrinks (i.e. removes)
 
 
@@ -220,8 +221,8 @@ int main()
 
 
     {    // Remove from the back of a singly linked list
-      std::forward_list<Book> ssl{ sampleData.cbegin(), sampleData.cend() };
-      measure( "SLL", "Remove from the back", remove_from_back_of_sll{ ssl }, Direction::Shrink );
+      std::forward_list<Book> sll{ sampleData.cbegin(), sampleData.cend() };
+      measure( "SLL", "Remove from the back", remove_from_back_of_sll{ sll }, Direction::Shrink );
     }
 
 
@@ -347,10 +348,10 @@ namespace    // unnamed, anonymous namespace
   template<class Operation>
   void measure( const std::string & structureName,                            // free text name of data structure being measured
                 const std::string & operationDescription,                     // free text name of the operation of the data structure being measured
-                Operation           operation,                                // operation to be measured, expressed as a Functiod
+                Operation           operation,                                // operation to be measured, expressed as a Functor
                 Direction::value    direction )                               // indicates to record measurements as the container grows (i.e. inserts) or shrinks (i.e. removes)
   {
-    static auto noop = []( auto & ) {};                                       // A no-operation (do nothing) Functiod. Useful when requesting no setup be done prior to measuring an operation.
+    static auto noop = []( auto & ) {};                                       // A no-operation (do nothing) Functor. Useful when requesting no setup be done prior to measuring an operation.
     measure( structureName, operationDescription, noop, operation, direction );
   }
 
@@ -362,8 +363,8 @@ namespace    // unnamed, anonymous namespace
   template<class Operation, class Preamble>
   void measure( const std::string & structureName,                            // free text name of data structure being measured
                 const std::string & operationDescription,                     // free text name of the operation of the data structure being measured
-                Preamble            preamble,                                 // setup work to occur before operation, expressed as a Functiod defaulted to "do nothing"
-                Operation           operation,                                // operation to be measured, expressed as a Functiod
+                Preamble            preamble,                                 // setup work to occur before operation, expressed as a Functor defaulted to "do nothing"
+                Operation           operation,                                // operation to be measured, expressed as a Functor
                 Direction::value    direction )                               // indicates to record measurements as the container grows (i.e. inserts) or shrinks (i.e. removes)
   {
     struct progressRAII
@@ -386,8 +387,7 @@ namespace    // unnamed, anonymous namespace
     {
       preamble( element );                                                    // perform any setup work, but don't include this in the measured time
 
-      // ToDo:  help prevent interruptions, perhaps with "critical section" or "Priority Boost"
-      // ToDo:  Remove the function call overhead from the measurement, perhaps with some template or polymorphic std::variant magic
+      // Future improvements: reduce OS scheduling interruptions and function call overhead during measurement.
       Clock::time_point start_time;
       Clock::time_point stop_time;
 
@@ -425,14 +425,29 @@ namespace    // unnamed, anonymous namespace
   {
     if( !matrix.empty() )
     {
-      // dump the data collected in a tab-separated values (tsv) table, for example:
+      using MeasurementColumn = std::pair<DataStructureName, OperationName>;
+
+      std::vector<MeasurementColumn> columns;
+      for( const auto & snapshot : matrix )
+      {
+        for( const auto & [structure, operations] : snapshot.second )
+        {
+          for( const auto & operationTime : operations )
+          {
+            MeasurementColumn column{ structure, operationTime.first };
+            if( std::find( columns.begin(), columns.end(), column ) == columns.end() ) columns.push_back( std::move( column ) );
+          }
+        }
+      }
+
+      // dump the data collected in a comma-separated values (csv) table, for example:
       //   Size  Vector/insert  Vector/Remove  List/insert  List/remove
       //   10    1              1              23           14
       //   20    3              2              40           37
 
       // Display the table header
       stream << "Size";
-      for( const auto & [structure, operations] : matrix.begin()->second ) for( const auto & [operation, accumulatedTime] : operations )
+      for( const auto & [structure, operation] : columns )
       {
         stream << ',' << structure << '/' << operation;
       }
@@ -442,9 +457,19 @@ namespace    // unnamed, anonymous namespace
       for( const auto & [size, structures] : matrix )
       {
         stream << size;
-        for( const auto & [structure, operations] : structures )  for( const auto & [operation, accumulatedTime] : operations )
+        for( const auto & [structure, operation] : columns )
         {
-          stream << ',' << std::chrono::duration_cast<std::chrono::nanoseconds>( accumulatedTime ).count();
+          stream << ',';
+
+          auto structureLocation = structures.find( structure );
+          if( structureLocation != structures.end() )
+          {
+            auto operationLocation = structureLocation->second.find( operation );
+            if( operationLocation != structureLocation->second.end() )
+            {
+              stream << std::chrono::duration_cast<std::chrono::nanoseconds>( operationLocation->second ).count();
+            }
+          }
         }
         stream << '\n';
       }

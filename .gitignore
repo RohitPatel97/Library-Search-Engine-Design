@@ -1,0 +1,15 @@
+# Build output
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+
+# Binaries
+*.exe
+*.out
+*.obj
+*.o
+
+# Generated benchmark output
+results.csv
